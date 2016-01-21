@@ -90,12 +90,6 @@ void loop()
   }
 }
 
-ISR (PCINT0_vect)
-{
-
-}
-
-
 void Update_Time()
 {
   unixTime++;
