@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 
+
 FRAM_I2C FRAM;
 
 #define cpt0_pin 2
@@ -30,6 +31,9 @@ uint8_t  PinState[8] = {1,1,1,1,1,1,1,1};
 byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // adresse MAC
 EthernetServer server(80);  // Port d'écoute du serveur web
 
+// NTPSERVER
+
+
 void setup()
 {
   Wire.begin();
@@ -40,9 +44,11 @@ void setup()
   }
   Ethernet.begin(mac);
   server.begin();
+
   Serial.print("server is at ");
   Serial.println(Ethernet.localIP());
   Compteur_Init();  
+  
   
   }
 
@@ -92,7 +98,7 @@ boolean Pin_change()
   for(i=0;i<8;i++)
  
   {
-    int pinread=digitalRead(i);
+    int pinread=digitalRead(cpt_pin[i]);
     if( pinread != (PinState[i]) )
     {
       if( pinread == 0 ) 
@@ -107,6 +113,11 @@ boolean Pin_change()
         {
           compteur[i]++;
           change = true;
+          Serial.print("Pulse Detected Compteur");
+          Serial.print(i);
+          Serial.print("=");
+          Serial.println(compteur[i]);
+          
         }
       }
     }  
@@ -143,10 +154,23 @@ void XML_Routine()
             client.print("<compteur");
             client.print(i);
             client.print(">");
+
+            client.print("<value>");
             client.print(compteur[i]);
+            client.print("</value>");
+
+            client.print("<since>");
+            client.print(compteur_since[i]);
+            compteur_since[i]=0;
+            client.print("</since>");
+
+            client.print("<conso>");
+            client.print(conso_inst[i]);
+            client.print("</conso>");
+
             client.print("</compteur");
             client.print(i);
-            client.print(">");
+            client.println(">");
           }
           client.println("</compteur>");
           break;
@@ -169,4 +193,7 @@ void XML_Routine()
   }
   
 }
+
+
+
 

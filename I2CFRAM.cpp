@@ -63,18 +63,10 @@ uint32_t FRAM_I2C::read32 (uint16_t framAddr)
 {
   uint32_t value=0;
   value = (read8(framAddr) << 8);
-  Serial.print(value,HEX);
-  Serial.print(" ");
   value += (read8(framAddr+1)) ;
-  Serial.print(value,HEX);
-  Serial.print(" ");
   value *=65535;
   value += (read8(framAddr+2) << 8) & 0xFF00;
-  Serial.print(value,HEX);
-  Serial.print(" ");
   value += read8(framAddr+3) & 0xFF;
-  Serial.print(value,HEX);
-  Serial.println(" ");
   return value;
 }
 
