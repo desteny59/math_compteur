@@ -25,11 +25,15 @@ uint8_t  cpt_pin[8] ={cpt0_pin,cpt1_pin,cpt2_pin,cpt3_pin,cpt4_pin,cpt5_pin,cpt6
 uint32_t compteur[8];
 uint32_t compteur_since[8];
 float    conso_inst[8];
+uint16_t    conso_moy[8];
+uint32_t conso_moy_temp[8];
 uint32_t compteur_time[8];
 uint32_t compteur_time2[8];
 uint8_t  PinState[8] = {1,1,1,1,1,1,1,1};
 uint32_t mincounter=0;
 boolean  change;
+boolean  changedebug;
+
 
 // Parametrage carte ethernet.
 // pas d'adressage IP car DHCP.
@@ -73,26 +77,40 @@ void loop()
 
   while(1)
   {
-  //if ( Pin_change() ) //test de detection d'impulsion et comptage si lieu
-  //  Compteur_Fram_Update(); // mise à jour de la fram si impulsion detectée.
-
   if (change)
     {
-    Serial.println(compteur[0]);
+    Compteur_Fram_Update();
     change=0;
     }
-
+    if (changedebug)
+    {
+    Serial.println(conso_moy[0]);
+    changedebug=0;
+    }
   XML_Routine();  // gestion du serveur web XML
-
   }
 }
 
+void calcmoy()
+{
+  int i;
+  for(int i=0;i<8;i++)
+  {
+    conso_moy[i]=conso_moy_temp[i]*60;
+    conso_moy_temp[i]=0;
+  }
+}
+
+
 void Update_Time()
 {
-  
-  mincounter=(mincounter+1)%300;
-  
-  
+  mincounter++;
+  if(mincounter==60)
+  {
+    mincounter=0;
+    calcmoy();
+    changedebug=true;
+  }
 }
 
 void Compteur_Init()
@@ -100,6 +118,7 @@ void Compteur_Init()
   for(int i=0;i<8;i++)
   {
     compteur[i]=FRAM.read32(i*4);
+    conso_moy_temp[i]=0;
   }
   pinMode(cpt0_pin,INPUT_PULLUP);
   pinMode(cpt1_pin,INPUT_PULLUP);
@@ -117,7 +136,7 @@ void Compteur_Init()
   enableInterrupt(cpt5_pin, compteur5, CHANGE);
   enableInterrupt(cpt6_pin, compteur6, CHANGE);
   enableInterrupt(cpt7_pin, compteur7, CHANGE);
-  
+
   
 }
 
@@ -148,6 +167,7 @@ void compteur0()
       {
         compteur[0]++;
         compteur_since[0]++;
+        conso_moy_temp[0]++;
         if(compteur_time2[0] != 0)
             conso_inst[0]=(float)3600000/(time-compteur_time2[0]);
         compteur_time2[0]=time;
@@ -175,6 +195,7 @@ void compteur1()
       {
         compteur[1]++;
         compteur_since[1]++;
+        conso_moy_temp[1]++;
         if(compteur_time2[1] != 0)
             conso_inst[1]=(float)3600000/(time-compteur_time2[1]);
         compteur_time2[1]=time;
@@ -202,6 +223,7 @@ void compteur2()
       {
         compteur[2]++;
         compteur_since[2]++;
+        conso_moy_temp[2]++;
         if(compteur_time2[2] != 0)
             conso_inst[2]=(float)3600000/(time-compteur_time2[2]);
         compteur_time2[2]=time;
@@ -229,6 +251,7 @@ void compteur3()
       {
         compteur[3]++;
         compteur_since[3]++;
+        conso_moy_temp[3]++;
         if(compteur_time2[3] != 0)
             conso_inst[3]=(float)3600000/(time-compteur_time2[3]);
         compteur_time2[3]=time;
@@ -256,6 +279,7 @@ void compteur4()
       {
         compteur[4]++;
         compteur_since[4]++;
+        conso_moy_temp[4]++;
         if(compteur_time2[4] != 0)
             conso_inst[4]=(float)3600000/(time-compteur_time2[4]);
         compteur_time2[4]=time;
@@ -283,6 +307,7 @@ void compteur5()
       {
         compteur[5]++;
         compteur_since[5]++;
+        conso_moy_temp[5]++;
         if(compteur_time2[5] != 0)
             conso_inst[5]=(float)3600000/(time-compteur_time2[5]);
         compteur_time2[5]=time;
@@ -310,6 +335,7 @@ void compteur6()
       {
         compteur[6]++;
         compteur_since[6]++;
+        conso_moy_temp[6]++;
         if(compteur_time2[6] != 0)
             conso_inst[6]=(float)3600000/(time-compteur_time2[6]);
         compteur_time2[6]=time;
@@ -337,6 +363,7 @@ void compteur7()
       {
         compteur[7]++;
         compteur_since[7]++;
+        conso_moy_temp[7]++;
         if(compteur_time2[7] != 0)
             conso_inst[7]=(float)3600000/(time-compteur_time2[7]);
         compteur_time2[7]=time;
@@ -358,7 +385,7 @@ void XML_Routine()
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.write(c);
+        //Serial.write(c);
         // if you've gotten to the end of the line (received a newline
         // character) and the line is blank, the http request has ended,
         // so you can send a reply
@@ -389,6 +416,10 @@ void XML_Routine()
             client.print("<conso>");
             client.print(conso_inst[i]);
             client.print("</conso>");
+
+            client.print("<consomoy>");
+            client.print(conso_moy[i]);
+            client.print("</consomoy>");
 
             client.print("</compteur");
             client.print(i);
