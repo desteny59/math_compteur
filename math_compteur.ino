@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <TimerOne.h>
+#include <EnableInterrupt.h>
 
 
 FRAM_I2C FRAM;
@@ -27,6 +28,8 @@ float    conso_inst[8];
 uint32_t compteur_time[8];
 uint32_t compteur_time2[8];
 uint8_t  PinState[8] = {1,1,1,1,1,1,1,1};
+uint32_t mincounter=0;
+boolean  change;
 
 // Parametrage carte ethernet.
 // pas d'adressage IP car DHCP.
@@ -34,11 +37,11 @@ byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // adresse MAC
 EthernetServer server(80);  // Port d'écoute du serveur web
 
 // NTPSERVER gestion du temps.
-EthernetClient client;
-uint32_t unixTime=0;
-uint32_t LastNetUpdated=0;
-boolean ErrorNetTimeUpdate=false;
-#define MaxTimeNoNetUpdated 86400 //temps en seconde avant nouvelle update sur le net.
+//EthernetClient client;
+//uint32_t unixTime=0;
+//uint32_t LastNetUpdated=0;
+//boolean ErrorNetTimeUpdate=false;
+//#define MaxTimeNoNetUpdated 86400 //temps en seconde avant nouvelle update sur le net.
 
 void setup()
 {
@@ -55,44 +58,41 @@ void setup()
   Serial.println(Ethernet.localIP());
   //erase_FRAM();
   Compteur_Init();
-  unixTime = webUnixTime(client);
-  LastNetUpdated=unixTime;
+  //unixTime = webUnixTime(client);
+  //LastNetUpdated=unixTime;
   Timer1.attachInterrupt(Update_Time);
   Timer1.initialize(1000000);
   
-  Serial.print("timestamp = ");
-  Serial.println(unixTime);
+  //Serial.print("timestamp = ");
+  //Serial.println(unixTime);
   
   }
 
 void loop()
 {
+
   while(1)
   {
-    
-  if ( Pin_change() ) //test de detection d'impulsion et comptage si lieu
-    Compteur_Fram_Update(); // mise à jour de la fram si impulsion detectée.
+  //if ( Pin_change() ) //test de detection d'impulsion et comptage si lieu
+  //  Compteur_Fram_Update(); // mise à jour de la fram si impulsion detectée.
+
+  if (change)
+    {
+    Serial.println(compteur[0]);
+    change=0;
+    }
 
   XML_Routine();  // gestion du serveur web XML
 
-  if( (unixTime-LastNetUpdated) > MaxTimeNoNetUpdated) // Mise à jour réguliere de l'horloge.
-    {
-    if(ErrorNetTimeUpdate != true)
-      {
-      uint32_t unixTimetemp = webUnixTime(client);
-      if(ErrorNetTimeUpdate!= true)
-        {
-        unixTime=unixTimetemp;
-        LastNetUpdated=unixTime;
-        }
-      }
-    }
   }
 }
 
 void Update_Time()
 {
-  unixTime++;
+  
+  mincounter=(mincounter+1)%300;
+  
+  
 }
 
 void Compteur_Init()
@@ -108,7 +108,17 @@ void Compteur_Init()
   pinMode(cpt4_pin,INPUT_PULLUP);
   pinMode(cpt5_pin,INPUT_PULLUP);
   pinMode(cpt6_pin,INPUT_PULLUP);
-  pinMode(cpt7_pin,INPUT_PULLUP);  
+  pinMode(cpt7_pin,INPUT_PULLUP);
+  enableInterrupt(cpt0_pin, compteur0, CHANGE);
+  enableInterrupt(cpt1_pin, compteur1, CHANGE);
+  enableInterrupt(cpt2_pin, compteur2, CHANGE);
+  enableInterrupt(cpt3_pin, compteur3, CHANGE);
+  enableInterrupt(cpt4_pin, compteur4, CHANGE);
+  enableInterrupt(cpt5_pin, compteur5, CHANGE);
+  enableInterrupt(cpt6_pin, compteur6, CHANGE);
+  enableInterrupt(cpt7_pin, compteur7, CHANGE);
+  
+  
 }
 
 void Compteur_Fram_Update()
@@ -120,51 +130,222 @@ void Compteur_Fram_Update()
   
 }
 
-boolean Pin_change()
+void compteur0()
 {
-  int i;
-  boolean change = false;
   uint32_t time=millis();
-  for(i=0;i<8;i++)
- 
+  int pinread=digitalRead(cpt0_pin);
+  if( pinread != (PinState[0]) )
   {
-    int pinread=digitalRead(cpt_pin[i]);
-    if( pinread != (PinState[i]) )
-    {
-      if( pinread == 0 ) 
-      { //detection de pulse
-        PinState[i] = 0;
-        compteur_time[i] = millis();
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[0] = 0;
+      compteur_time[0]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[0] = 1;
+      if( (time-compteur_time[0]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[0]++;
+        compteur_since[0]++;
+        if(compteur_time2[0] != 0)
+            conso_inst[0]=(float)3600000/(time-compteur_time2[0]);
+        compteur_time2[0]=time;
+        change = true;
       }
-      else
-      { //fin de la pulse
-        PinState[i] = 1;
-        if( (millis()-compteur_time[i])> min_pulse_duration) //test si pas rebond
-        {
-          compteur[i]++;
-          compteur_since[i]++;
-          if(compteur_time2[i] != 0)
-            conso_inst[i]=(float)3600000/(time-compteur_time2[i]);
-          
-          Serial.print(compteur_time2[i]);
-          Serial.print("=");
-          Serial.print(time);
-           Serial.print("=");
-            Serial.print(time-compteur_time2[i]);
-          compteur_time2[i]=time;
-          change = true;
-          Serial.print("   Pulse Detected Compteur");
-          Serial.print(i);
-          Serial.print("=");
-          Serial.print(compteur[i]);
-          Serial.print(" conso_int = ");
-          Serial.println(conso_inst[i]);
-        }
-      }
-    }  
+    }
   }
-  return change;  
 }
+
+void compteur1()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt1_pin);
+  if( pinread != (PinState[1]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[1] = 0;
+      compteur_time[1]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[1] = 1;
+      if( (time-compteur_time[1]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[1]++;
+        compteur_since[1]++;
+        if(compteur_time2[1] != 0)
+            conso_inst[1]=(float)3600000/(time-compteur_time2[1]);
+        compteur_time2[1]=time;
+        change = true;
+      }
+    }
+  }
+}
+
+void compteur2()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt2_pin);
+  if( pinread != (PinState[2]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[2] = 0;
+      compteur_time[2]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[2] = 1;
+      if( (time-compteur_time[2]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[2]++;
+        compteur_since[2]++;
+        if(compteur_time2[2] != 0)
+            conso_inst[2]=(float)3600000/(time-compteur_time2[2]);
+        compteur_time2[2]=time;
+        change = true;
+      }
+    }
+  }
+}
+
+void compteur3()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt3_pin);
+  if( pinread != (PinState[3]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[3] = 0;
+      compteur_time[3]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[3] = 1;
+      if( (time-compteur_time[3]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[3]++;
+        compteur_since[3]++;
+        if(compteur_time2[3] != 0)
+            conso_inst[3]=(float)3600000/(time-compteur_time2[3]);
+        compteur_time2[3]=time;
+        change = true;
+      }
+    }
+  }
+}
+
+void compteur4()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt4_pin);
+  if( pinread != (PinState[4]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[4] = 0;
+      compteur_time[4]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[4] = 1;
+      if( (time-compteur_time[4]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[4]++;
+        compteur_since[4]++;
+        if(compteur_time2[4] != 0)
+            conso_inst[4]=(float)3600000/(time-compteur_time2[4]);
+        compteur_time2[4]=time;
+        change = true;
+      }
+    }
+  }
+}
+
+void compteur5()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt5_pin);
+  if( pinread != (PinState[5]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[5] = 0;
+      compteur_time[5]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[5] = 1;
+      if( (time-compteur_time[5]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[5]++;
+        compteur_since[5]++;
+        if(compteur_time2[5] != 0)
+            conso_inst[5]=(float)3600000/(time-compteur_time2[5]);
+        compteur_time2[5]=time;
+        change = true;
+      }
+    }
+  }
+}
+
+void compteur6()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt6_pin);
+  if( pinread != (PinState[6]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[6] = 0;
+      compteur_time[6]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[6] = 1;
+      if( (time-compteur_time[6]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[6]++;
+        compteur_since[6]++;
+        if(compteur_time2[6] != 0)
+            conso_inst[6]=(float)3600000/(time-compteur_time2[6]);
+        compteur_time2[6]=time;
+        change = true;
+      }
+    }
+  }
+}
+
+void compteur7()
+{
+  uint32_t time=millis();
+  int pinread=digitalRead(cpt7_pin);
+  if( pinread != (PinState[7]) )
+  {
+    if (pinread ==0 )
+    { // detection du début de la pulse
+      PinState[7] = 0;
+      compteur_time[7]=time;
+    }
+    else
+    { // fin de la pulse
+      PinState[7] = 1;
+      if( (time-compteur_time[7]) > min_pulse_duration) //test anti rebond
+      {
+        compteur[7]++;
+        compteur_since[7]++;
+        if(compteur_time2[7] != 0)
+            conso_inst[7]=(float)3600000/(time-compteur_time2[7]);
+        compteur_time2[7]=time;
+        change = true;
+      }
+    }
+  }
+}
+
 
 void XML_Routine()
 {
@@ -232,85 +413,6 @@ void XML_Routine()
     Serial.println("client disconnected");
     Ethernet.maintain();
   }
-  
-}
-
-unsigned long webUnixTime (Client &client)
-{
-  unsigned long time = 0;
-
-  // Just choose any reasonably busy web server, the load is really low
-  if (client.connect("www.google.fr", 80))
-    {
-      // Make an HTTP 1.1 request which is missing a Host: header
-      // compliant servers are required to answer with an error that includes
-      // a Date: header.
-      client.print(F("GET / HTTP/1.1 \r\n\r\n"));
-
-      char buf[5];      // temporary buffer for characters
-      client.setTimeout(5000);
-      if (client.find((char *)"\r\nDate: ") // look for Date: header
-    && client.readBytes(buf, 5) == 5) // discard
-  {
-    unsigned day = client.parseInt();    // day
-    client.readBytes(buf, 1);    // discard
-    client.readBytes(buf, 3);    // month
-    int year = client.parseInt();    // year
-    byte hour = client.parseInt();   // hour
-    byte minute = client.parseInt(); // minute
-    byte second = client.parseInt(); // second
-
-    int daysInPrevMonths;
-    switch (buf[0])
-      {
-      case 'F': daysInPrevMonths =  31; break; // Feb
-      case 'S': daysInPrevMonths = 243; break; // Sep
-      case 'O': daysInPrevMonths = 273; break; // Oct
-      case 'N': daysInPrevMonths = 304; break; // Nov
-      case 'D': daysInPrevMonths = 334; break; // Dec
-      default:
-        if (buf[0] == 'J' && buf[1] == 'a')
-    daysInPrevMonths = 0;   // Jan
-        else if (buf[0] == 'A' && buf[1] == 'p')
-    daysInPrevMonths = 90;    // Apr
-        else switch (buf[2])
-         {
-         case 'r': daysInPrevMonths =  59; break; // Mar
-         case 'y': daysInPrevMonths = 120; break; // May
-         case 'n': daysInPrevMonths = 151; break; // Jun
-         case 'l': daysInPrevMonths = 181; break; // Jul
-         default: // add a default label here to avoid compiler warning
-         case 'g': daysInPrevMonths = 212; break; // Aug
-         }
-      }
-
-    // This code will not work after February 2100
-    // because it does not account for 2100 not being a leap year and because
-    // we use the day variable as accumulator, which would overflow in 2149
-    day += (year - 1970) * 365; // days from 1970 to the whole past year
-    day += (year - 1969) >> 2;  // plus one day per leap year 
-    day += daysInPrevMonths;  // plus days for previous months this year
-    if (daysInPrevMonths >= 59  // if we are past February
-        && ((year & 3) == 0)) // and this is a leap year
-      day += 1;     // add one day
-    // Remove today, add hours, minutes and seconds this month
-    time = (((day-1ul) * 24 + hour) * 60 + minute) * 60 + second;
-  }
-    }
-  delay(10);
-  client.flush();
-  client.stop();
-  if (time !=0)
-  {
-    Serial.print("Time Net Updated. -> ");
-    Serial.println(time);
-  }
-  else
-  {
-    Serial.println("Error in Net Time Update. NTP Disabled Reboot to restart NTP");
-    ErrorNetTimeUpdate=true;
-  }
-  return time;
 }
 
 void erase_FRAM()
